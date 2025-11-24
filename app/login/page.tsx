@@ -11,18 +11,24 @@ type UserInfo = {
 }
 
 export default function LoginPage() {
+  const [blocked, setBlocked] = useState(false)
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+        const ua = navigator.userAgent.toLowerCase()
+
+    if (ua.includes('line/')) {
+      setBlocked(true)
+    }
     const loadUser = async () => {
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession()
 
-      if (error) {
+    if (error && !error.message.includes('Auth session missing')) {
         console.error(error)
         setError(error.message)
       } else if (session?.user) {
@@ -63,7 +69,8 @@ export default function LoginPage() {
       },
     })
 
-    if (error) {
+    // 「Auth session missing」は「すでにセッションが無いだけ」なのでエラー扱いしない
+    if (error && !error.message.includes('Auth session missing')) {
       console.error(error)
       setError(error.message)
     }
@@ -89,6 +96,29 @@ export default function LoginPage() {
       </div>
     )
   }
+
+  if (blocked) {
+          return (
+        <div className="p-6 text-center space-y-4">
+          <h2 className="text-lg font-bold text-[#111827]">
+            LINEアプリ内ブラウザではログインできません
+          </h2>
+
+          <p className="text-sm text-[#4B5563]">
+            Googleログインを使うためには、外部ブラウザでこのページを開く必要があります。
+          </p>
+
+          <ul className="text-xs text-left text-[#6B7280] space-y-1 max-w-xs mx-auto">
+            <li>① 画面右上の「︙」または「⋯」をタップ</li>
+            <li>② 「他のアプリで開く」または「Safariで開く / Chromeで開く」を選択</li>
+          </ul>
+
+          <p className="text-[11px] text-[#9CA3AF]">
+            ※ LINE からはアプリ側で外部ブラウザを自動で開くことができません
+          </p>
+        </div>
+      )
+    }
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4">
