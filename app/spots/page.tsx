@@ -6,6 +6,7 @@ type Spot = {
   id: string
   name: string
   area: string | null
+  genre: string | null
   address: string | null
   description: string | null
   image_url: string | null
@@ -14,7 +15,7 @@ type Spot = {
 export default async function SpotsPage() {
   const { data, error } = await supabase
     .from('spots')
-    .select('id,name,area,address,description,image_url')
+    .select('id,name,area,genre,address,description,image_url')
     .order('area', { ascending: true })
     .order('name', { ascending: true })
 

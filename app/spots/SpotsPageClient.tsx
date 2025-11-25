@@ -8,6 +8,7 @@ type Spot = {
   id: string
   name: string
   area: string | null
+  genre: string | null
   address: string | null
   description: string | null
   image_url: string | null
@@ -19,6 +20,7 @@ type Props = {
 
 export default function SpotsPageClient({ spots }: Props) {
   const [selectedArea, setSelectedArea] = useState<string>('')
+  const [selectedGenre, setSelectedGenre] = useState('')
 
   // プルダウンに表示するエリア一覧（ユニーク＆ソート）
   const areas = useMemo(() => {
@@ -29,13 +31,24 @@ export default function SpotsPageClient({ spots }: Props) {
     return Array.from(set).sort()
   }, [spots])
 
+    // ジャンル一覧
+  const genres = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of spots) {
+      if (s.genre) set.add(s.genre)
+    }
+    return Array.from(set).sort()
+  }, [spots])
+
   // フィルタ後のスポット一覧
   const filteredSpots = useMemo(
     () =>
-      selectedArea
-        ? spots.filter((s) => s.area === selectedArea)
-        : spots,
-    [spots, selectedArea]
+      spots.filter((s) => {
+        const areaOK = selectedArea ? s.area === selectedArea : true
+        const genreOK = selectedGenre ? s.genre === selectedGenre : true
+        return areaOK && genreOK
+      }),
+    [spots, selectedArea, selectedGenre]
   )
 
   return (
@@ -62,6 +75,23 @@ export default function SpotsPageClient({ spots }: Props) {
             {areas.map((area) => (
               <option key={area} value={area}>
                 {area}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* ジャンルフィルタ */}
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-[11px] text-[#6B7280]">ジャンル</label>
+          <select
+            className="flex-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-[#374151] shadow-sm focus:border-[#6366F1] focus:outline-none"
+            value={selectedGenre}
+            onChange={(e) => setSelectedGenre(e.target.value)}
+          >
+            <option value="">すべてのジャンル</option>
+            {genres.map((genre) => (
+              <option key={genre} value={genre}>
+                {genre}
               </option>
             ))}
           </select>
