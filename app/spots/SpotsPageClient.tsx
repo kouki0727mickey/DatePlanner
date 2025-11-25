@@ -8,7 +8,7 @@ type Spot = {
   id: string
   name: string
   area: string | null
-  genre: string | null
+  genre: string | null // カンマ区切りの文字列
   address: string | null
   description: string | null
   image_url: string | null
@@ -18,9 +18,18 @@ type Props = {
   spots: Spot[]
 }
 
+// カンマ区切りの genre を配列化して、前後の空白を削るヘルパー
+function parseGenres(genre: string | null): string[] {
+  if (!genre) return []
+  return genre
+    .split(',')
+    .map((g) => g.trim())
+    .filter((g) => g.length > 0)
+}
+
 export default function SpotsPageClient({ spots }: Props) {
   const [selectedArea, setSelectedArea] = useState<string>('')
-  const [selectedGenre, setSelectedGenre] = useState('')
+  const [selectedGenre, setSelectedGenre] = useState<string>('')
 
   // プルダウンに表示するエリア一覧（ユニーク＆ソート）
   const areas = useMemo(() => {
@@ -31,11 +40,13 @@ export default function SpotsPageClient({ spots }: Props) {
     return Array.from(set).sort()
   }, [spots])
 
-    // ジャンル一覧
+  // プルダウンに表示するジャンル一覧（全スポットから genre を分解して集約）
   const genres = useMemo(() => {
     const set = new Set<string>()
     for (const s of spots) {
-      if (s.genre) set.add(s.genre)
+      for (const g of parseGenres(s.genre)) {
+        set.add(g)
+      }
     }
     return Array.from(set).sort()
   }, [spots])
@@ -44,9 +55,15 @@ export default function SpotsPageClient({ spots }: Props) {
   const filteredSpots = useMemo(
     () =>
       spots.filter((s) => {
-        const areaOK = selectedArea ? s.area === selectedArea : true
-        const genreOK = selectedGenre ? s.genre === selectedGenre : true
-        return areaOK && genreOK
+        const spotGenres = parseGenres(s.genre)
+
+        const matchArea = selectedArea ? s.area === selectedArea : true
+        const matchGenre =
+          selectedGenre && selectedGenre.length > 0
+            ? spotGenres.includes(selectedGenre)
+            : true
+
+        return matchArea && matchGenre
       }),
     [spots, selectedArea, selectedGenre]
   )
@@ -61,11 +78,9 @@ export default function SpotsPageClient({ spots }: Props) {
           行ってみたい場所をタップすると、詳細や「行った！」ボタンが表示されます。
         </p>
 
-        {/* エリアフィルタ（プルダウン） */}
+        {/* エリアフィルタ */}
         <div className="mt-3 flex items-center gap-2">
-          <label className="text-[11px] text-[#6B7280]">
-            エリアで絞り込み
-          </label>
+          <label className="text-[11px] text-[#6B7280]">エリア</label>
           <select
             className="flex-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-[#374151] shadow-sm focus:border-[#6366F1] focus:outline-none"
             value={selectedArea}
@@ -80,7 +95,7 @@ export default function SpotsPageClient({ spots }: Props) {
           </select>
         </div>
 
-        {/* ジャンルフィルタ */}
+        {/* ジャンルフィルタ（1つだけ選べるプルダウン） */}
         <div className="mt-2 flex items-center gap-2">
           <label className="text-[11px] text-[#6B7280]">ジャンル</label>
           <select
@@ -100,8 +115,8 @@ export default function SpotsPageClient({ spots }: Props) {
 
       {filteredSpots.length === 0 ? (
         <p className="text-sm text-[#4B5563]">
-          {selectedArea
-            ? `「${selectedArea}」エリアのスポットはまだ登録されていません。`
+          {selectedArea || selectedGenre
+            ? '条件に合うスポットがまだ登録されていません。'
             : 'まだスポットが登録されていません。'}
         </p>
       ) : (
@@ -127,6 +142,7 @@ export default function SpotsPageClient({ spots }: Props) {
                   <h3 className="line-clamp-1 text-sm font-semibold text-[#111827]">
                     {spot.name}
                   </h3>
+                  {/* エリア or ジャンルをバッジとして出したければここで追加してもOK */}
                   {spot.area && (
                     <span className="rounded-full bg-[#E0F2FE] px-2 py-0.5 text-[10px] font-semibold text-[#1D4ED8]">
                       {spot.area}

@@ -1,4 +1,3 @@
-// app/spots/[id]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -15,6 +14,9 @@ type Spot = {
   lat: number | null
   lng: number | null
   image_url: string | null
+  budget: string | null
+  reserve_url: string | null
+  google_map_url: string | null
 }
 
 export default function SpotDetailPage() {
@@ -40,7 +42,9 @@ export default function SpotDetailPage() {
 
       const { data, error } = await supabase
         .from('spots')
-        .select('id,name,area,address,description,lat,lng,image_url')
+        .select(
+          'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url'
+        )
         .eq('id', id)
         .maybeSingle()
 
@@ -74,7 +78,6 @@ export default function SpotDetailPage() {
     }
 
     if (!session?.user) {
-      // 未ログインなら login へ
       router.push('/login')
       return
     }
@@ -82,7 +85,6 @@ export default function SpotDetailPage() {
     setVisitLoading(true)
 
     try {
-      // すでに登録済みか確認（ユーザー単位）
       const { data: existing, error: existingErr } = await supabase
         .from('visits')
         .select('id')
@@ -162,7 +164,9 @@ export default function SpotDetailPage() {
         ← スポット一覧にもどる
       </Link>
 
-      <section className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-md shadow-[#00000010] space-y-3">
+      {/* メインのスポットカード */}
+      <section className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-md shadow-[#00000010] space-y-4">
+        {/* 画像 */}
         {spot.image_url && (
           <div className="overflow-hidden rounded-2xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -174,36 +178,90 @@ export default function SpotDetailPage() {
           </div>
         )}
 
-        <div>
-          <h2 className="mb-1 text-xl font-semibold text-[#111827]">
-            {spot.name}
-          </h2>
-          {spot.area && (
-            <p className="text-xs text-[#6B7280]">エリア：{spot.area}</p>
-          )}
-          {spot.address && (
-            <p className="text-xs text-[#6B7280]">住所：{spot.address}</p>
-          )}
+        {/* タイトル + エリア */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-[#111827] sm:text-xl">
+              {spot.name}
+            </h2>
+            {spot.area && (
+              <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+                {spot.area}
+              </span>
+            )}
+          </div>
         </div>
 
-        {spot.description && (
-          <p className="text-sm text-[#4B5563] whitespace-pre-line">
-            {spot.description}
-          </p>
-        )}
+        {/* 基本情報カード */}
+        <div className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-4 text-xs text-[#374151] space-y-3">
+          <h3 className="text-sm font-semibold text-[#111827]">基本情報</h3>
+          <div className="grid grid-cols-1 gap-y-2 gap-x-6 sm:grid-cols-2">
+            {spot.address && (
+              <div className="flex gap-2">
+                <span className="w-20 shrink-0 text-[11px] text-[#6B7280]">
+                  住所
+                </span>
+                <span className="text-[11px] sm:text-xs">{spot.address}</span>
+              </div>
+            )}
 
-        {mapSrc && (
-          <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-[#9CA3AF]">
-            場所（Google マップ）
+            {spot.budget && (
+              <div className="flex gap-2">
+                <span className="w-20 shrink-0 text-[11px] text-[#6B7280]">
+                  予算
+                </span>
+                <span className="text-[11px] sm:text-xs">{spot.budget}</span>
+              </div>
+            )}
+          </div>
+
+          {/* 外部リンク行 */}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {spot.reserve_url && (
+              <a
+                href={spot.reserve_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-full bg-[#F97316] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-[#F97316A0] hover:bg-[#EA580C]"
+              >
+                予約サイトを開く
+              </a>
+            )}
+
+            {spot.google_map_url && (
+              <a
+                href={spot.google_map_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-full bg-[#2563EB] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-[#2563EBA0] hover:bg-[#1D4ED8]"
+              >
+                Googleマップで開く
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* 説明テキスト */}
+        {spot.description && (
+          <div className="rounded-2xl bg-[#FFF7ED] p-3 text-sm text-[#4B5563] whitespace-pre-line">
+            {spot.description}
           </div>
         )}
+
+        {/* 埋め込みマップ */}
         {mapSrc && (
-          <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#FFF7F0]">
-            <iframe src={mapSrc} className="h-64 w-full" loading="lazy" />
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#9CA3AF]">
+              Location Map
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#FFF7F0]">
+              <iframe src={mapSrc} className="h-64 w-full" loading="lazy" />
+            </div>
           </div>
         )}
       </section>
 
+      {/* 行った！カード */}
       <section className="rounded-3xl border border-[#BBF7D0] bg-[#ECFDF3] p-4 shadow-md shadow-[#22C55E40] space-y-2">
         <h3 className="text-sm font-semibold text-[#166534]">
           このスポットにデートで行った？
