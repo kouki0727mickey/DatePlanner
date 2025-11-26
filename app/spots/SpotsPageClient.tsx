@@ -78,6 +78,14 @@ export default function SpotsPageClient({ spots }: Props) {
           行ってみたい場所をタップすると、詳細や「行った！」ボタンが表示されます。
         </p>
 
+            {/* 追加ボタン */}
+    <Link
+      href="/spots/new"
+      className="rounded-full bg-[#A5F3FC] text-[#0E7490] px-4 py-2 text-xs font-semibold shadow-md shadow-[#0E749040] hover:bg-[#67E8F9] transition"
+    >
+      ＋ 新しいスポットを追加
+    </Link>
+
         {/* エリアフィルタ */}
         <div className="mt-3 flex items-center gap-2">
           <label className="text-[11px] text-[#6B7280]">エリア</label>
