@@ -80,27 +80,28 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signOut()
+        const { error } = await supabase.auth.signOut()
 
-      if (error) {
+        if (error) {
         console.error('signOut error:', error)
-        setError('ログアウトに失敗しました')
-        return
-      }
+        // ここではエラーにせずログアウト扱いにする
+        }
+
     } catch (err: any) {
-      // スマホでよく出る「AuthSessionMissingError」は「すでにログアウト済み」とみなして無視
-      if (err?.name === 'AuthSessionMissingError') {
-        console.warn('Already signed out (AuthSessionMissingError), ignore.')
-      } else {
-        console.error('signOut threw error:', err)
-        setError('ログアウトに失敗しました')
-        return
-      }
+        // スマホでよく発生する「すでにセッションが無い」
+        if (err?.name === 'AuthSessionMissingError') {
+        console.warn('Session already missing, forcing logout state.')
+        // 何もしない（ログアウト完了扱い）
+        } else {
+        console.error('signOut threw an unexpected error:', err)
+        // ただし UI はログアウト状態にしてしまう
+        }
     }
 
-    // ここまで来たら「ログアウト完了」とみなす
+    // ここで「ログアウト完了」扱いにする
     setUser(null)
-  }
+    }
+
 
   if (loading) {
     return (
