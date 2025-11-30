@@ -78,12 +78,27 @@ export default function LoginPage() {
 
   const handleLogout = async () => {
     setError(null)
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error(error)
-      setError(error.message)
-      return
+
+    try {
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        console.error('signOut error:', error)
+        setError('ログアウトに失敗しました')
+        return
+      }
+    } catch (err: any) {
+      // スマホでよく出る「AuthSessionMissingError」は「すでにログアウト済み」とみなして無視
+      if (err?.name === 'AuthSessionMissingError') {
+        console.warn('Already signed out (AuthSessionMissingError), ignore.')
+      } else {
+        console.error('signOut threw error:', err)
+        setError('ログアウトに失敗しました')
+        return
+      }
     }
+
+    // ここまで来たら「ログアウト完了」とみなす
     setUser(null)
   }
 
