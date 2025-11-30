@@ -4,8 +4,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { ADMIN_EMAILS } from '@/config/admin'
 
-const ADMIN_EMAILS = ['kouki0727mickey@gmail.com'] as const // ← 自分のメールアドレスに変更してね
 
 type FormState = {
   name: string

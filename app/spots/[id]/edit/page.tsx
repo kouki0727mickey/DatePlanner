@@ -5,9 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
-
-// 編集を許可するメールアドレス
-const ADMIN_EMAILS = ['kouki0727mickey@gmail.com'] as const // ← あなたのメールに変更
+import { ADMIN_EMAILS } from '@/config/admin' 
 
 type Spot = {
   id: string
