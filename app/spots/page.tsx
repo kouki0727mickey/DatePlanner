@@ -1,4 +1,6 @@
 // app/spots/page.tsx
+export const dynamic = 'force-dynamic'
+
 import { supabase } from '@/lib/supabaseClient'
 import SpotsPageClient from './SpotsPageClient'
 
