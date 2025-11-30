@@ -46,6 +46,7 @@ export default function EditSpotPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -225,6 +226,44 @@ export default function EditSpotPage() {
 
     // 保存完了 → 詳細ページへ戻る
     router.push(`/spots/${id}`)
+  }
+
+    const handleDelete = async () => {
+    if (!id) {
+      setError('URL の id が不正です')
+      return
+    }
+
+    const ok = window.confirm(
+      'このスポットを削除しますか？\nこの操作は元に戻せません。'
+    )
+    if (!ok) return
+
+    setError(null)
+    setDeleting(true)
+
+    try {
+      // 関連テーブルに外部キー制約がある場合は
+      // DB 側で ON DELETE CASCADE を設定しておくと楽です
+      const { error: deleteError } = await supabase
+        .from('spots')
+        .delete()
+        .eq('id', id)
+
+      if (deleteError) {
+        console.error(deleteError)
+        setError('スポットの削除に失敗しました: ' + deleteError.message)
+        setDeleting(false)
+        return
+      }
+
+      // 削除成功 → 一覧へ
+      router.push('/spots')
+    } catch (e) {
+      console.error(e)
+      setError('削除中にエラーが発生しました')
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -435,23 +474,37 @@ export default function EditSpotPage() {
           <p className="text-xs text-[#B91C1C]">{error}</p>
         )}
 
-        <div className="pt-2 flex gap-2">
-          <button
+        <div className="pt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2">
+            <button
             type="submit"
-            disabled={saving}
+            disabled={saving || deleting}
             className="inline-flex items-center justify-center rounded-full bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#6366F180] transition hover:bg-[#4F46E5] disabled:opacity-60 disabled:shadow-none"
-          >
+            >
             {saving ? '保存中…' : '変更を保存する'}
-          </button>
+            </button>
 
-          <button
+            <button
             type="button"
             onClick={() => router.push(id ? `/spots/${id}` : '/spots')}
             className="inline-flex items-center justify-center rounded-full bg-[#E5E7EB] px-4 py-2 text-xs font-semibold text-[#374151] hover:bg-[#D1D5DB]"
-          >
+            disabled={saving || deleting}
+            >
             キャンセル
-          </button>
+            </button>
         </div>
+
+        {/* 削除ボタン */}
+        <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving || deleting}
+            className="inline-flex items-center justify-center rounded-full bg-[#F87171] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#DC262680] transition hover:bg-[#EF4444] disabled:opacity-60 disabled:shadow-none"
+        >
+            {deleting ? '削除中…' : 'このスポットを削除する'}
+        </button>
+        </div>
+
       </form>
     </div>
   )
