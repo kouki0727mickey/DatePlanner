@@ -172,7 +172,7 @@ export default function EditSpotPage() {
         const filePath = `spots/${fileName}`
 
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('spots-images') // bucket 名
+          .from('Pictures') // bucket 名
           .upload(filePath, imageFile)
 
         if (uploadError) {
@@ -183,7 +183,7 @@ export default function EditSpotPage() {
         }
 
         const { data: publicUrlData } = supabase.storage
-          .from('spots-images')
+          .from('Pictures')
           .getPublicUrl(uploadData.path)
 
         image_url = publicUrlData.publicUrl
