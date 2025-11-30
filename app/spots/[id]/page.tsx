@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { ADMIN_EMAILS } from '@/config/admin'
 
 type Spot = {
   id: string
@@ -32,6 +33,10 @@ export default function SpotDetailPage() {
   const [visitLoading, setVisitLoading] = useState(false)
   const [visitError, setVisitError] = useState<string | null>(null)
 
+  // 管理者判定用
+  const [email, setEmail] = useState<string | null>(null)
+
+  // スポット情報取得
   useEffect(() => {
     const load = async () => {
       if (!id) {
@@ -62,29 +67,54 @@ export default function SpotDetailPage() {
     load()
   }, [id])
 
+  // ログインユーザーのメール取得（セッションがなくてもエラー扱いにしない）
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error) {
+          // セッションなし or その他のエラー → 管理者ではない扱い
+          console.warn('getSession error (ignored):', error)
+          setEmail(null)
+          return
+        }
+        setEmail(data.session?.user.email ?? null)
+      } catch (err) {
+        // AuthSessionMissingError などもここで握る
+        console.warn('getSession threw error (ignored):', err)
+        setEmail(null)
+      }
+    }
+    load()
+  }, [])
+
+  const isAdmin = !!email && ADMIN_EMAILS.includes(email)
+
+  // 「行った！」ボタン
   const handleVisit = async () => {
     if (!spot) return
     setVisitError(null)
 
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession()
-
-    if (error) {
-      console.error(error)
-      setVisitError('ログイン情報の取得に失敗しました')
-      return
-    }
-
-    if (!session?.user) {
-      router.push('/login')
-      return
-    }
-
-    setVisitLoading(true)
-
     try {
+      const { data, error } = await supabase.auth.getSession()
+
+      if (error) {
+        console.error(error)
+        setVisitError('ログイン情報の取得に失敗しました')
+        return
+      }
+
+      const session = data.session
+
+      if (!session?.user) {
+        // ログインしていなければログインページへ
+        router.push('/login')
+        return
+      }
+
+      setVisitLoading(true)
+
+      // すでに登録済みか確認
       const { data: existing, error: existingErr } = await supabase
         .from('visits')
         .select('id')
@@ -119,9 +149,10 @@ export default function SpotDetailPage() {
 
       setIsVisited(true)
       setVisitLoading(false)
-    } catch (e) {
-      console.error(e)
-      setVisitError('予期せぬエラーが発生しました')
+    } catch (err) {
+      // AuthSessionMissingError などをここでキャッチ
+      console.error('handleVisit getSession error:', err)
+      setVisitError('ログイン情報の取得中にエラーが発生しました')
       setVisitLoading(false)
     }
   }
@@ -283,12 +314,16 @@ export default function SpotDetailPage() {
           <p className="text-xs text-[#B91C1C]">{visitError}</p>
         )}
       </section>
-      <Link
-  href={`/spots/${spot.id}/edit`}
-  className="text-[11px] text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
->
-  このスポットを編集する（管理者）
-</Link>
+
+      {/* 管理者だけ編集リンク */}
+      {isAdmin && (
+        <Link
+          href={`/spots/${spot.id}/edit`}
+          className="text-[11px] text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
+        >
+          このスポットを編集する（管理者）
+        </Link>
+      )}
     </div>
   )
 }

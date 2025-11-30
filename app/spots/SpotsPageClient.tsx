@@ -1,8 +1,10 @@
 // app/spots/SpotsPageClient.tsx
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabaseClient'
+import { ADMIN_EMAILS } from '@/config/admin'
 
 type Spot = {
   id: string
@@ -30,6 +32,18 @@ function parseGenres(genre: string | null): string[] {
 export default function SpotsPageClient({ spots }: Props) {
   const [selectedArea, setSelectedArea] = useState<string>('')
   const [selectedGenre, setSelectedGenre] = useState<string>('')
+
+    // 管理者判定用
+  const [email, setEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getSession()
+      const userEmail = data.session?.user.email ?? null
+      setEmail(userEmail)
+    }
+    load()
+  }, [])
 
   // プルダウンに表示するエリア一覧（ユニーク＆ソート）
   const areas = useMemo(() => {
@@ -67,6 +81,7 @@ export default function SpotsPageClient({ spots }: Props) {
       }),
     [spots, selectedArea, selectedGenre]
   )
+  const isAdmin = email && ADMIN_EMAILS.includes(email)
 
   return (
     <div className="space-y-4">
@@ -79,12 +94,14 @@ export default function SpotsPageClient({ spots }: Props) {
         </p>
 
             {/* 追加ボタン */}
-    <Link
-      href="/spots/new"
-      className="rounded-full bg-[#A5F3FC] text-[#0E7490] px-4 py-2 text-xs font-semibold shadow-md shadow-[#0E749040] hover:bg-[#67E8F9] transition"
-    >
-      ＋ 新しいスポットを追加
-    </Link>
+            {isAdmin && (
+            <Link
+              href="/spots/new"
+              className="rounded-full bg-[#A5F3FC] text-[#0E7490] px-4 py-2 text-xs font-semibold shadow-md shadow-[#0E749040] hover:bg-[#67E8F9] transition"
+            >
+              ＋ 新しいスポットを追加
+            </Link>
+               )}
 
         {/* エリアフィルタ */}
         <div className="mt-3 flex items-center gap-2">
