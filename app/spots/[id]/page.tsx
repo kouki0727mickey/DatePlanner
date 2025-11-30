@@ -283,6 +283,12 @@ export default function SpotDetailPage() {
           <p className="text-xs text-[#B91C1C]">{visitError}</p>
         )}
       </section>
+      <Link
+  href={`/spots/${spot.id}/edit`}
+  className="text-[11px] text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
+>
+  このスポットを編集する（管理者）
+</Link>
     </div>
   )
 }
