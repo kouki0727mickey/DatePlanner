@@ -20,6 +20,7 @@ type Spot = {
   lat: number | null
   lng: number | null
   image_url: string | null
+  instagram_url: string | null
 }
 
 type FormState = {
@@ -33,6 +34,7 @@ type FormState = {
   google_map_url: string
   lat: string
   lng: string
+  instagram_url: string
 }
 
 export default function EditSpotPage() {
@@ -57,6 +59,7 @@ export default function EditSpotPage() {
     google_map_url: '',
     lat: '',
     lng: '',
+    instagram_url: '',
   })
 
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -102,7 +105,7 @@ export default function EditSpotPage() {
       const { data, error } = await supabase
         .from('spots')
         .select(
-          'id,name,area,genre,address,description,budget,reserve_url,google_map_url,lat,lng,image_url'
+          'id,name,area,genre,address,description,budget,reserve_url,google_map_url,lat,lng,image_url,instagram_url'
         )
         .eq('id', id)
         .maybeSingle()
@@ -133,6 +136,7 @@ export default function EditSpotPage() {
         google_map_url: spot.google_map_url ?? '',
         lat: spot.lat != null ? String(spot.lat) : '',
         lng: spot.lng != null ? String(spot.lng) : '',
+        instagram_url: spot.instagram_url  ?? '',
       })
       setExistingImageUrl(spot.image_url ?? null)
       setLoading(false)
@@ -212,6 +216,7 @@ export default function EditSpotPage() {
         lat,
         lng,
         image_url,
+        instagram_url: form.instagram_url.trim() || null,
       })
       .eq('id', id)
 
@@ -439,6 +444,19 @@ export default function EditSpotPage() {
             placeholder="https://maps.app.goo.gl/..."
           />
         </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#374151]">
+              インスタURL
+            </label>
+            <input
+              type="url"
+              placeholder="Instagram のURL (任意)"
+              value={form.instagram_url}
+              onChange={(e) => handleChange('instagram_url', e.target.value)}
+              className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#6366F1] focus:outline-none"
+            />
+          </div>
 
         {/* 緯度・経度 */}
         <div className="grid gap-3 sm:grid-cols-2">

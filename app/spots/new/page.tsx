@@ -18,6 +18,7 @@ type FormState = {
   google_map_url: string
   lat: string
   lng: string
+  instagram_url: string
 }
 
 export default function NewSpotPage() {
@@ -30,6 +31,7 @@ export default function NewSpotPage() {
   // 画像ファイル用
   const [imageFile, setImageFile] = useState<File | null>(null)
 
+  const [instagramUrl, setInstagramUrl] = useState("");
   const [form, setForm] = useState<FormState>({
     name: '',
     area: '',
@@ -41,6 +43,7 @@ export default function NewSpotPage() {
     google_map_url: '',
     lat: '',
     lng: '',
+    instagram_url: '',
   })
 
   useEffect(() => {
@@ -145,6 +148,7 @@ export default function NewSpotPage() {
         lat,
         lng,
         image_url, // ← ここで紐づけ
+        instagram_url: instagramUrl, 
       })
       .select('id')
       .maybeSingle()
@@ -279,7 +283,7 @@ export default function NewSpotPage() {
           </p>
         </div>
 
-        {/* 予算・予約・マップリンク */}
+        {/* 予算・予約・マップ・インスタリンク */}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-[#374151]">
@@ -303,6 +307,18 @@ export default function NewSpotPage() {
               onChange={(e) => handleChange('reserve_url', e.target.value)}
               className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#6366F1] focus:outline-none"
               placeholder="https://..."
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#374151]">
+              インスタURL
+            </label>
+            <input
+              type="url"
+              placeholder="Instagram のURL (任意)"
+              value={instagramUrl}
+              onChange={(e) => setInstagramUrl(e.target.value)}
+              className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#6366F1] focus:outline-none"
             />
           </div>
         </div>

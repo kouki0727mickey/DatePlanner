@@ -18,6 +18,7 @@ type Spot = {
   budget: string | null
   reserve_url: string | null
   google_map_url: string | null
+  instagram_url: string | null
 }
 
 export default function SpotDetailPage() {
@@ -48,7 +49,7 @@ export default function SpotDetailPage() {
       const { data, error } = await supabase
         .from('spots')
         .select(
-          'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url'
+          'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url,instagram_url'
         )
         .eq('id', id)
         .maybeSingle()
@@ -267,6 +268,17 @@ export default function SpotDetailPage() {
                 className="inline-flex items-center rounded-full bg-[#2563EB] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-[#2563EBA0] hover:bg-[#1D4ED8]"
               >
                 Googleマップで開く
+              </a>
+            )}
+
+            {spot.instagram_url && (
+              <a
+                href={spot.instagram_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-full bg-[#E1306C] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-[#E1306CA0] hover:bg-[#C2185B]"
+              >
+                Instagram を見る
               </a>
             )}
           </div>
