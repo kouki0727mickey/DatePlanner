@@ -26,6 +26,15 @@ export default function Home() {
         </Link>
 
         <Link
+          href="/plan"
+          className="flex flex-col justify-between rounded-2xl bg-[#EEF2FF] px-4 py-3 text-sm font-semibold text-[#3730A3] shadow-md hover:bg-[#E0E7FF]"
+        >
+          <span>プランを自動生成する</span>
+          <span className="text-xs text-[#6B7280]">エリアを選んで一発でデートコース</span>
+        </Link>
+
+
+        <Link
           href="/mypage"
           className="flex flex-col justify-between rounded-2xl bg-white px-4 py-3 text-sm text-[#111827] shadow-md shadow-[#00000010] border border-[#E5E7EB] transition hover:-translate-y-0.5 hover:bg-[#E0F2FE]"
         >

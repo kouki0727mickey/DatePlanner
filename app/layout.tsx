@@ -33,6 +33,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 スポット一覧
               </a>
               <a
+                href="/plan"
+                className="rounded-full bg-white px-3 py-1 text-[#111827] shadow-sm shadow-[#00000012] border border-[#E5E7EB] hover:bg-[#EEF2FF]"
+              >
+                プラン生成
+              </a>
+
+              <a
                 href="/mypage"
                 className="rounded-full bg-white px-3 py-1 text-[#111827] shadow-sm shadow-[#00000012] border border-[#E5E7EB] hover:bg-[#E0F2FE]"
               >
