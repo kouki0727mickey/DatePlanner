@@ -14,11 +14,18 @@ type Spot = {
   description: string | null
   lat: number | null
   lng: number | null
-  image_url: string | null
+  image_url: string | null // 代表（カバー）画像
   budget: string | null
   reserve_url: string | null
   google_map_url: string | null
   instagram_url: string | null
+}
+
+// spot_images（複数画像）用
+type SpotImage = {
+  id: string
+  image_url: string
+  sort_order: number
 }
 
 export default function SpotDetailPage() {
@@ -27,6 +34,8 @@ export default function SpotDetailPage() {
   const id = params?.id
 
   const [spot, setSpot] = useState<Spot | null>(null)
+  const [images, setImages] = useState<SpotImage[]>([]) // ← 追加
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +46,7 @@ export default function SpotDetailPage() {
   // 管理者判定用
   const [email, setEmail] = useState<string | null>(null)
 
-  // スポット情報取得
+  // スポット情報 + ギャラリー画像 取得
   useEffect(() => {
     const load = async () => {
       if (!id) {
@@ -46,23 +55,53 @@ export default function SpotDetailPage() {
         return
       }
 
-      const { data, error } = await supabase
-        .from('spots')
-        .select(
-          'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url,instagram_url'
-        )
-        .eq('id', id)
-        .maybeSingle()
+      try {
+        // ① spots を取得
+        const { data: spotData, error: spotErr } = await supabase
+          .from('spots')
+          .select(
+            'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url,instagram_url'
+          )
+          .eq('id', id)
+          .maybeSingle()
 
-      if (error) {
-        console.error(error)
-        setError(error.message)
-      } else if (!data) {
-        setError('スポットが見つかりませんでした')
-      } else {
-        setSpot(data as Spot)
+        if (spotErr) {
+          console.error(spotErr)
+          setError(spotErr.message)
+          setLoading(false)
+          return
+        }
+
+        if (!spotData) {
+          setError('スポットが見つかりませんでした')
+          setLoading(false)
+          return
+        }
+
+        setSpot(spotData as Spot)
+
+        // ② spot_images（複数画像）を取得
+        // ※ 画像が取れなくても致命的ではないので、ここは error にしない運用もOK
+        const { data: imgData, error: imgErr } = await supabase
+          .from('spot_images')
+          .select('id,image_url,sort_order')
+          .eq('spot_id', id)
+          .order('sort_order', { ascending: true })
+
+        if (imgErr) {
+          console.error(imgErr)
+          // 画像だけ失敗 → 画面自体は出す（必要ならメッセージ表示にしてもOK）
+          setImages([])
+        } else {
+          setImages((imgData ?? []) as SpotImage[])
+        }
+
+        setLoading(false)
+      } catch (e) {
+        console.error(e)
+        setError('読み込み中に予期せぬエラーが発生しました')
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     load()
@@ -74,14 +113,12 @@ export default function SpotDetailPage() {
       try {
         const { data, error } = await supabase.auth.getSession()
         if (error) {
-          // セッションなし or その他のエラー → 管理者ではない扱い
           console.warn('getSession error (ignored):', error)
           setEmail(null)
           return
         }
         setEmail(data.session?.user.email ?? null)
       } catch (err) {
-        // AuthSessionMissingError などもここで握る
         console.warn('getSession threw error (ignored):', err)
         setEmail(null)
       }
@@ -108,14 +145,12 @@ export default function SpotDetailPage() {
       const session = data.session
 
       if (!session?.user) {
-        // ログインしていなければログインページへ
         router.push('/login')
         return
       }
 
       setVisitLoading(true)
 
-      // すでに登録済みか確認
       const { data: existing, error: existingErr } = await supabase
         .from('visits')
         .select('id')
@@ -151,7 +186,6 @@ export default function SpotDetailPage() {
       setIsVisited(true)
       setVisitLoading(false)
     } catch (err) {
-      // AuthSessionMissingError などをここでキャッチ
       console.error('handleVisit getSession error:', err)
       setVisitError('ログイン情報の取得中にエラーが発生しました')
       setVisitLoading(false)
@@ -198,15 +232,40 @@ export default function SpotDetailPage() {
 
       {/* メインのスポットカード */}
       <section className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-md shadow-[#00000010] space-y-4">
-        {/* 画像 */}
+        {/* 代表（カバー）画像 */}
         {spot.image_url && (
-          <div className="overflow-hidden rounded-2xl">
+          <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={spot.image_url}
               alt={spot.name}
               className="max-h-72 w-full object-cover"
             />
+          </div>
+        )}
+
+        {/* ▼ ギャラリー（複数画像） */}
+        {images.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#9CA3AF]">
+              Gallery
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {images.map((img) => (
+                <div
+                  key={img.id}
+                  className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.image_url}
+                    alt=""
+                    className="h-32 w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -322,9 +381,7 @@ export default function SpotDetailPage() {
           {isVisited ? '行った！登録済み' : visitLoading ? '登録中…' : '行った！'}
         </button>
 
-        {visitError && (
-          <p className="text-xs text-[#B91C1C]">{visitError}</p>
-        )}
+        {visitError && <p className="text-xs text-[#B91C1C]">{visitError}</p>}
       </section>
 
       {/* 管理者だけ編集リンク */}
