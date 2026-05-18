@@ -175,9 +175,6 @@ export default function SpotDetailPage() {
         <Link href="/spots" style={{ fontSize: 12, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
           ← スポット一覧に戻る
         </Link>
-        <span style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: 'var(--gold)', letterSpacing: '0.08em', fontWeight: 600 }}>
-          👁 スポット閲覧
-        </span>
       </div>
 
       {/* メインカード */}
