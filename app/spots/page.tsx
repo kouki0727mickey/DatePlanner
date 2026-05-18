@@ -1,8 +1,4 @@
-// app/spots/page.tsx
-// ★ Supabase fetch ロジックは既存コードから変更しない
-//   このファイルでは UI のみ差し替え。
-//   既存コードの createClient / fetchSpots / Spot 型定義をそのまま維持すること。
-
+import { Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import SpotsClient from "./SpotsClient";
 
@@ -22,5 +18,14 @@ export default async function SpotsPage() {
     .select("*")
     .order("area");
 
-  return <SpotsClient spots={(spots as Spot[]) ?? []} />;
+  return (
+    <Suspense fallback={
+      <div style={{ maxWidth: 1100, margin: "60px auto", textAlign: "center", color: "var(--muted)" }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid var(--gold)", borderTopColor: "transparent", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    }>
+      <SpotsClient spots={(spots as Spot[]) ?? []} />
+    </Suspense>
+  );
 }
