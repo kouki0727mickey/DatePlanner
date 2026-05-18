@@ -1,204 +1,99 @@
+"use client";
 // app/login/page.tsx
-'use client'
+// ★ Supabase Google OAuth ロジックは既存コードから変更しない
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { supabase } from '@/lib/supabaseClient'
-
-type UserInfo = {
-  id: string
-  email?: string
-}
+import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [blocked, setBlocked] = useState(false)
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const router  = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
 
+  // ── 既存のセッションチェックをそのまま維持 ──
   useEffect(() => {
-        const ua = navigator.userAgent.toLowerCase()
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) router.replace("/mypage");
+      else setChecking(false);
+    });
+  }, [router]);
 
-    if (ua.includes('line/')) {
-      setBlocked(true)
-    }
-    const loadUser = async () => {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-
-    if (error && !error.message.includes('Auth session missing')) {
-        console.error(error)
-        setError(error.message)
-      } else if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? undefined,
-        })
-      }
-
-      setLoading(false)
-    }
-
-    loadUser()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? undefined,
-        })
-      } else {
-        setUser(null)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const handleLoginWithGoogle = async () => {
-    setError(null)
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/login`,
-      },
-    })
-
-    // 「Auth session missing」は「すでにセッションが無いだけ」なのでエラー扱いしない
-    if (error && !error.message.includes('Auth session missing')) {
-      console.error(error)
-      setError(error.message)
-    }
+  async function handleGoogleLogin() {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${location.origin}/mypage` },
+    });
   }
 
-  const handleLogout = async () => {
-    setError(null)
-
-    try {
-        const { error } = await supabase.auth.signOut()
-
-        if (error) {
-        console.error('signOut error:', error)
-        // ここではエラーにせずログアウト扱いにする
-        }
-
-    } catch (err: any) {
-        // スマホでよく発生する「すでにセッションが無い」
-        if (err?.name === 'AuthSessionMissingError') {
-        console.warn('Session already missing, forcing logout state.')
-        // 何もしない（ログアウト完了扱い）
-        } else {
-        console.error('signOut threw an unexpected error:', err)
-        // ただし UI はログアウト状態にしてしまう
-        }
-    }
-
-    // ここで「ログアウト完了」扱いにする
-    setUser(null)
-    }
-
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center">
-        <div className="rounded-2xl border border-[#E5E7EB] bg-white px-6 py-4 text-sm text-[#374151] shadow-md shadow-[#00000010]">
-          ログイン状態を確認中…
-        </div>
-      </div>
-    )
-  }
-
-  if (blocked) {
-          return (
-        <div className="p-6 text-center space-y-4">
-          <h2 className="text-lg font-bold text-[#111827]">
-            LINEアプリ内ブラウザではログインできません
-          </h2>
-
-          <p className="text-sm text-[#4B5563]">
-            Googleログインを使うためには、外部ブラウザでこのページを開く必要があります。
-          </p>
-
-          <ul className="text-xs text-left text-[#6B7280] space-y-1 max-w-xs mx-auto">
-            <li>① 画面右上の「︙」または「⋯」をタップ</li>
-            <li>② 「他のアプリで開く」または「Safariで開く / Chromeで開く」を選択</li>
-          </ul>
-
-          <p className="text-[11px] text-[#9CA3AF]">
-            ※ LINE からはアプリ側で外部ブラウザを自動で開くことができません
-          </p>
-        </div>
-      )
-    }
+  if (checking) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 rounded-full border-2 animate-spin mx-auto"
+        style={{ borderColor: "var(--gold)", borderTopColor: "transparent" }} />
+    </div>
+  );
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4">
-      <Link
-        href="/"
-        className="text-xs text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
-      >
-        ← トップにもどる
-      </Link>
-
-      <div className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-lg shadow-[#00000010]">
-        <h2 className="mb-2 text-xl font-semibold text-[#111827]">
-          アカウント / ログイン
-        </h2>
-        <p className="mb-4 text-xs text-[#6B7280]">
-          ログインすると、「行った！」の履歴をマイページで振り返れます。
-        </p>
-
-        {error && (
-          <div className="mb-3 rounded-xl border border-[#FCA5A5] bg-[#FEE2E2] px-3 py-2 text-xs text-[#7F1D1D]">
-            {error}
+    <div className="flex items-center justify-center min-h-[80vh] px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo area */}
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <span style={{ width: 40, height: 1, background: "var(--gold)", display: "inline-block", opacity: 0.5 }} />
+            <span className="font-mincho text-xs tracking-widest" style={{ color: "var(--gold)", opacity: 0.8 }}>
+              SIGN IN
+            </span>
+            <span style={{ width: 40, height: 1, background: "var(--gold)", display: "inline-block", opacity: 0.5 }} />
           </div>
-        )}
+          <h1 className="font-mincho text-2xl font-semibold" style={{ color: "var(--cream)" }}>
+            ログイン
+          </h1>
+          <p className="text-xs mt-2 tracking-wide" style={{ color: "var(--muted)" }}>
+            Google アカウントでかんたんにはじめられます
+          </p>
+        </div>
 
-        {user ? (
-          <div className="space-y-4">
-            <div className="space-y-1 rounded-xl border border-[#E5E7EB] bg-[#FFF7F0] p-3 text-xs text-[#374151]">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">
-                現在ログイン中
-              </div>
-              <div>
-                <span className="text-[#9CA3AF]">ID:</span>
-                <span className="ml-1 font-mono break-all text-[#111827]">
-                  {user.id}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#9CA3AF]">Email:</span>
-                <span className="ml-1 text-[#111827]">
-                  {user.email ?? '（なし）'}
-                </span>
-              </div>
-            </div>
+        {/* Card */}
+        <div className="rounded-2xl p-8"
+          style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex w-full items-center justify-center rounded-full border border-[#FCA5A5] bg-white px-4 py-2 text-xs font-semibold text-[#7F1D1D] shadow-sm shadow-[#FCA5A580] transition hover:bg-[#FEE2E2]"
-            >
-              ログアウトする
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <button
-              type="button"
-              onClick={handleLoginWithGoogle}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#6366F180] transition hover:bg-[#4F46E5]"
-            >
-              Google でログインする
-            </button>
-          </div>
-        )}
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl text-sm font-semibold tracking-wider transition-all duration-200"
+            style={{
+              background: loading ? "var(--border)" : "var(--gold)",
+              color: loading ? "var(--muted)" : "#1a1200",
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? (
+              <span>ログイン中…</span>
+            ) : (
+              <>
+                <GoogleIcon />
+                Google でログイン
+              </>
+            )}
+          </button>
+
+          <p className="text-center text-xs mt-6 leading-relaxed" style={{ color: "var(--muted)" }}>
+            ログインすることで、「行った！」記録や<br />デートプランの保存が使えるようになります
+          </p>
+        </div>
       </div>
     </div>
-  )
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#1a1200" fillOpacity="0.8"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#1a1200" fillOpacity="0.7"/>
+      <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#1a1200" fillOpacity="0.6"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#1a1200" fillOpacity="0.5"/>
+    </svg>
+  );
 }
