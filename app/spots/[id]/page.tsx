@@ -6,13 +6,11 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { ADMIN_EMAILS } from '@/config/admin'
 
-/**
- * spots テーブル型（代表画像は image_url）
- */
 type Spot = {
   id: string
   name: string
   area: string | null
+  genre: string | null
   address: string | null
   description: string | null
   lat: number | null
@@ -24,13 +22,17 @@ type Spot = {
   instagram_url: string | null
 }
 
-/**
- * spot_images テーブル型（複数画像）
- */
-type SpotImage = {
-  id: string
-  image_url: string
-  sort_order: number
+type SpotImage = { id: string; image_url: string; sort_order: number }
+
+const TAG_STYLE_AREA: React.CSSProperties = {
+  fontSize: 11, padding: '3px 10px', borderRadius: 20,
+  background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)',
+  color: 'var(--gold-light)',
+}
+const TAG_STYLE_GENRE: React.CSSProperties = {
+  fontSize: 11, padding: '3px 10px', borderRadius: 20,
+  background: 'rgba(201,169,110,0.05)', border: '1px solid var(--border)',
+  color: 'var(--muted)',
 }
 
 export default function SpotDetailPage() {
@@ -38,561 +40,278 @@ export default function SpotDetailPage() {
   const router = useRouter()
   const id = params?.id
 
-  const [spot, setSpot] = useState<Spot | null>(null)
-  const [images, setImages] = useState<SpotImage[]>([])
-
+  const [spot, setSpot]       = useState<Spot | null>(null)
+  const [images, setImages]   = useState<SpotImage[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // 管理者判定用
-  const [email, setEmail] = useState<string | null>(null)
+  const [error, setError]     = useState<string | null>(null)
+  const [email, setEmail]     = useState<string | null>(null)
   const isAdmin = !!email && ADMIN_EMAILS.includes(email)
 
-  // 「行った！」機能（既存機能がある場合はここを既存に合わせてOK）
-  const [isVisited, setIsVisited] = useState(false)
+  const [isVisited, setIsVisited]     = useState(false)
   const [visitLoading, setVisitLoading] = useState(false)
-  const [visitError, setVisitError] = useState<string | null>(null)
+  const [visitError, setVisitError]   = useState<string | null>(null)
 
-  // モーダル制御
-  const [modalOpen, setModalOpen] = useState(false)
+  const [modalOpen, setModalOpen]   = useState(false)
   const [modalIndex, setModalIndex] = useState(0)
-
-  // スワイプ制御（タッチ開始座標など）
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
-  const touchLock = useRef(false) // 1スワイプで連続切替しないようロック
+  const touchLock   = useRef(false)
 
-  /**
-   * ①スポット情報 + ②ギャラリー画像を取得
-   */
   useEffect(() => {
+    if (!id) { setError('IDが不正です'); setLoading(false); return }
     const load = async () => {
-      if (!id) {
-        setError('URL の id が不正です')
-        setLoading(false)
-        return
-      }
-
       try {
-        // --- spots 本体取得 ---
         const { data: spotData, error: spotErr } = await supabase
           .from('spots')
-          .select(
-            'id,name,area,address,description,lat,lng,image_url,budget,reserve_url,google_map_url,instagram_url'
-          )
-          .eq('id', id)
-          .maybeSingle()
-
-        if (spotErr) {
-          console.error(spotErr)
-          setError(spotErr.message)
-          setLoading(false)
-          return
-        }
-
-        if (!spotData) {
-          setError('スポットが見つかりませんでした')
-          setLoading(false)
-          return
-        }
-
+          .select('id,name,area,genre,address,description,lat,lng,image_url,budget,reserve_url,google_map_url,instagram_url')
+          .eq('id', id).maybeSingle()
+        if (spotErr) { setError(spotErr.message); setLoading(false); return }
+        if (!spotData) { setError('スポットが見つかりませんでした'); setLoading(false); return }
         setSpot(spotData as Spot)
-
-        // --- spot_images 取得（sort_order順） ---
-        const { data: imgData, error: imgErr } = await supabase
-          .from('spot_images')
-          .select('id,image_url,sort_order')
-          .eq('spot_id', id)
-          .order('sort_order', { ascending: true })
-
-        if (imgErr) {
-          console.warn('spot_images 取得エラー:', imgErr)
-          setImages([])
-        } else {
-          setImages((imgData ?? []) as SpotImage[])
-        }
-
-        setLoading(false)
-      } catch (e) {
-        console.error(e)
-        setError('読み込み中にエラーが発生しました')
-        setLoading(false)
-      }
+        const { data: imgData } = await supabase
+          .from('spot_images').select('id,image_url,sort_order')
+          .eq('spot_id', id).order('sort_order', { ascending: true })
+        setImages((imgData ?? []) as SpotImage[])
+      } catch { setError('読み込み中にエラーが発生しました') }
+      setLoading(false)
     }
-
     load()
   }, [id])
 
-  /**
-   * セッションからメール取得（管理者判定）
-   * ※セッション無しでも落ちないように try/catch
-   */
   useEffect(() => {
-    const load = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) {
-          console.warn('getSession error:', error)
-          setEmail(null)
-          return
-        }
-        setEmail(data.session?.user.email ?? null)
-      } catch (e) {
-        console.warn('getSession threw:', e)
-        setEmail(null)
-      }
-    }
-    load()
+    supabase.auth.getSession()
+      .then(({ data }) => setEmail(data.session?.user.email ?? null))
+      .catch(() => setEmail(null))
   }, [])
 
-  /**
-   * 代表画像（カバー）決定：
-   * - spots.image_url があればそれ
-   * - 無ければギャラリー先頭を代表として表示
-   */
-  const coverUrl = useMemo(() => {
-    if (spot?.image_url) return spot.image_url
-    return images.length ? images[0].image_url : null
-  }, [spot?.image_url, images])
-
-  /**
-   * モーダル用の全画像配列：
-   * - cover + images を重複なしで構成
-   */
+  const coverUrl = useMemo(() =>
+    spot?.image_url ?? (images.length ? images[0].image_url : null),
+    [spot?.image_url, images]
+  )
   const allImages = useMemo(() => {
     const list: string[] = []
     if (coverUrl) list.push(coverUrl)
-    for (const img of images) {
-      if (!list.includes(img.image_url)) list.push(img.image_url)
-    }
+    for (const img of images) if (!list.includes(img.image_url)) list.push(img.image_url)
     return list
   }, [coverUrl, images])
 
-  /**
-   * モーダルを開く
-   */
-  const openModalAt = (index: number) => {
-    setModalIndex(index)
-    setModalOpen(true)
-    touchLock.current = false
-  }
+  // カンマ区切りで分割
+  const areas  = useMemo(() => (spot?.area  ?? '').split(',').map(s => s.trim()).filter(Boolean), [spot?.area])
+  const genres = useMemo(() => (spot?.genre ?? '').split(',').map(s => s.trim()).filter(Boolean), [spot?.genre])
 
-  /**
-   * モーダルを閉じる
-   */
-  const closeModal = () => {
-    setModalOpen(false)
-    touchStartX.current = null
-    touchStartY.current = null
-    touchLock.current = false
-  }
+  const openModalAt = (i: number) => { setModalIndex(i); setModalOpen(true); touchLock.current = false }
+  const closeModal  = () => { setModalOpen(false); touchStartX.current = null; touchStartY.current = null }
 
-  /**
-   * キーボード操作（PC向け）
-   * - ESC: 閉じる
-   * - ← →: 切替
-   */
   useEffect(() => {
     if (!modalOpen) return
-
-    const onKeyDown = (e: KeyboardEvent) => {
+    const fn = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeModal()
-      if (e.key === 'ArrowLeft') setModalIndex((i) => Math.max(0, i - 1))
-      if (e.key === 'ArrowRight')
-        setModalIndex((i) => Math.min(allImages.length - 1, i + 1))
+      if (e.key === 'ArrowLeft')  setModalIndex(i => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setModalIndex(i => Math.min(allImages.length - 1, i + 1))
     }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
   }, [modalOpen, allImages.length])
 
-  /**
-   * スワイプ開始（モーダル用）
-   */
   const onTouchStart = (e: React.TouchEvent) => {
     if (!e.touches?.length) return
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
     touchLock.current = false
   }
-
-  /**
-   * スワイプ移動（モーダル用）
-   * - 横方向が一定以上動いたら画像切替
-   * - 縦スクロールの誤判定を避けるため、縦移動が大きい場合は無視
-   */
   const onTouchMove = (e: React.TouchEvent) => {
-    if (touchLock.current) return
-    if (touchStartX.current == null || touchStartY.current == null) return
-    if (!e.touches?.length) return
-
-    const x = e.touches[0].clientX
-    const y = e.touches[0].clientY
-
-    const dx = x - touchStartX.current
-    const dy = y - touchStartY.current
-
-    // 縦移動が大きい場合はスクロールとみなしてスワイプ判定しない
+    if (touchLock.current || touchStartX.current == null || touchStartY.current == null || !e.touches?.length) return
+    const dx = e.touches[0].clientX - touchStartX.current
+    const dy = e.touches[0].clientY - touchStartY.current
     if (Math.abs(dy) > 40) return
-
-    // スワイプ閾値（これ以上で切替）
-    const threshold = 60
-
-    if (dx > threshold) {
-      // 右スワイプ：前へ
-      touchLock.current = true
-      setModalIndex((i) => Math.max(0, i - 1))
-    } else if (dx < -threshold) {
-      // 左スワイプ：次へ
-      touchLock.current = true
-      setModalIndex((i) => Math.min(allImages.length - 1, i + 1))
-    }
+    if (dx > 60)       { touchLock.current = true; setModalIndex(i => Math.max(0, i - 1)) }
+    else if (dx < -60) { touchLock.current = true; setModalIndex(i => Math.min(allImages.length - 1, i + 1)) }
   }
-
-  /**
-   * スワイプ終了（モーダル用）
-   */
   const onTouchEnd = () => {
-    touchStartX.current = null
-    touchStartY.current = null
-    // ちょっと遅延してロック解除（連続切替防止）
-    setTimeout(() => {
-      touchLock.current = false
-    }, 120)
+    touchStartX.current = null; touchStartY.current = null
+    setTimeout(() => { touchLock.current = false }, 120)
   }
 
-  /**
-   * 「行った！」ボタン処理（あなたの既存 visits テーブルに合わせた版）
-   */
   const handleVisit = async () => {
     if (!spot) return
     setVisitError(null)
-
     try {
       const { data, error } = await supabase.auth.getSession()
-      if (error) {
-        console.error(error)
-        setVisitError('ログイン情報の取得に失敗しました')
-        return
-      }
-      const session = data.session
-      if (!session?.user) {
-        router.push('/login')
-        return
-      }
-
+      if (error) { setVisitError('ログイン情報の取得に失敗しました'); return }
+      if (!data.session?.user) { router.push('/login'); return }
       setVisitLoading(true)
-
-      // 既存チェック
-      const { data: existing, error: existingErr } = await supabase
-        .from('visits')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('spot_id', spot.id)
-        .limit(1)
-
-      if (existingErr) {
-        console.error(existingErr)
-        setVisitError('履歴確認に失敗しました')
-        setVisitLoading(false)
-        return
-      }
-
-      if (existing && existing.length > 0) {
-        setIsVisited(true)
-        setVisitLoading(false)
-        return
-      }
-
-      const { error: insertErr } = await supabase.from('visits').insert({
-        user_id: session.user.id,
-        spot_id: spot.id,
-      })
-
-      if (insertErr) {
-        console.error(insertErr)
-        setVisitError('「行った！」の登録に失敗しました')
-        setVisitLoading(false)
-        return
-      }
-
-      setIsVisited(true)
-      setVisitLoading(false)
-    } catch (e) {
-      console.error(e)
-      setVisitError('ログイン情報の取得中にエラーが発生しました')
-      setVisitLoading(false)
-    }
+      const { data: existing } = await supabase.from('visits').select('id')
+        .eq('user_id', data.session.user.id).eq('spot_id', spot.id).limit(1)
+      if (existing && existing.length > 0) { setIsVisited(true); setVisitLoading(false); return }
+      const { error: insertErr } = await supabase.from('visits')
+        .insert({ user_id: data.session.user.id, spot_id: spot.id })
+      if (insertErr) { setVisitError('登録に失敗しました'); setVisitLoading(false); return }
+      setIsVisited(true); setVisitLoading(false)
+    } catch { setVisitError('エラーが発生しました'); setVisitLoading(false) }
   }
 
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#374151] shadow">
-        スポット情報を読み込み中…
-      </div>
-    )
-  }
+  if (loading) return (
+    <div style={{ maxWidth: 680, margin: '60px auto', textAlign: 'center', color: 'var(--muted)' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--gold)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+      <p className="font-mincho" style={{ fontSize: 13 }}>読み込み中…</p>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
-  if (!spot || error) {
-    return (
-      <div className="space-y-3">
-        <Link
-          href="/spots"
-          className="text-xs text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
-        >
-          ← スポット一覧にもどる
-        </Link>
-        <div className="rounded-2xl border border-[#FCA5A5] bg-[#FEE2E2] px-4 py-3 text-sm text-[#7F1D1D] shadow">
-          {error ?? 'スポット情報が取得できませんでした。'}
-        </div>
-      </div>
-    )
-  }
+  if (!spot || error) return (
+    <div style={{ maxWidth: 680, margin: '60px auto', padding: '0 20px', textAlign: 'center' }}>
+      <p style={{ color: 'var(--muted)', marginBottom: 16 }}>{error ?? 'スポット情報が取得できませんでした'}</p>
+      <Link href="/spots" style={{ color: 'var(--gold)', fontSize: 13 }}>← スポット一覧に戻る</Link>
+    </div>
+  )
 
-  const mapSrc =
-    spot.lat && spot.lng
-      ? `https://www.google.com/maps?q=${spot.lat},${spot.lng}&z=17&output=embed`
-      : null
+  const mapSrc = spot.lat && spot.lng
+    ? `https://www.google.com/maps?q=${spot.lat},${spot.lng}&z=17&output=embed` : null
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4 px-3 pb-10 sm:px-0">
-      {/* 戻る */}
-      <Link
-        href="/spots"
-        className="text-xs text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
-      >
-        ← スポット一覧にもどる
-      </Link>
+    <div style={{ maxWidth: 680, margin: '0 auto', padding: '24px 16px 80px' }}>
+      {/* ページ種別バッジ */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <Link href="/spots" style={{ fontSize: 12, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
+          ← スポット一覧に戻る
+        </Link>
+        <span style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: 'var(--gold)', letterSpacing: '0.08em', fontWeight: 600 }}>
+          👁 スポット閲覧
+        </span>
+      </div>
 
-      {/* メインカード（スマホで見やすい縦構成） */}
-      <section className="space-y-4 rounded-3xl border border-[#E5E7EB] bg-white p-3 shadow-md shadow-[#00000010] sm:p-4">
-        {/* 代表画像（タップで拡大） */}
+      {/* メインカード */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, overflow: 'hidden', marginBottom: 16 }}>
         {coverUrl && (
-          <button
-            type="button"
-            onClick={() => openModalAt(0)}
-            className="block w-full overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] focus:outline-none"
-            aria-label="画像を拡大"
-          >
+          <button type="button" onClick={() => openModalAt(0)}
+            style={{ display: 'block', width: '100%', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={coverUrl}
-              alt={spot.name}
-              className="h-56 w-full object-cover sm:h-72"
-            />
+            <img src={coverUrl} alt={spot.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} />
           </button>
         )}
 
-        {/* タイトル・エリア */}
-        <div className="space-y-2">
-          <h1 className="text-lg font-semibold text-[#111827] sm:text-xl">
+        <div style={{ padding: '20px 20px 24px' }}>
+          <h1 className="font-mincho" style={{ fontSize: 22, fontWeight: 700, color: 'var(--cream)', marginBottom: 12, lineHeight: 1.4 }}>
             {spot.name}
           </h1>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {spot.area && (
-              <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
-                {spot.area}
-              </span>
-            )}
+          {/* エリア・ジャンルタグ：カンマ区切りを個別に表示 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {areas.map(a => <span key={a} style={TAG_STYLE_AREA}>📍 {a}</span>)}
+            {genres.map(g => <span key={g} style={TAG_STYLE_GENRE}>{g}</span>)}
             {spot.budget && (
-              <span className="inline-flex items-center rounded-full bg-[#ECFDF3] px-2.5 py-0.5 text-[11px] font-semibold text-[#166534]">
-                {spot.budget}
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
+                💴 {spot.budget}
               </span>
             )}
           </div>
-        </div>
 
-        {/* ギャラリー（スマホは横スクロールで見やすく） */}
-        {allImages.length > 1 && (
-          <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#9CA3AF]">
-              Gallery
-            </div>
+          {spot.description && (
+            <p style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text)', whiteSpace: 'pre-line', marginBottom: 20, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              {spot.description}
+            </p>
+          )}
 
-            <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-2 sm:overflow-visible sm:px-0">
-              {allImages.map((url, idx) => (
-                <button
-                  key={url + idx}
-                  type="button"
-                  onClick={() => openModalAt(idx)}
-                  className="shrink-0 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white focus:outline-none sm:shrink"
-                  aria-label={`画像を拡大 ${idx + 1}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt=""
-                    className="h-24 w-40 object-cover sm:h-28 sm:w-full"
-                    loading="lazy"
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 基本情報（見やすくブロック化） */}
-        {(spot.address || spot.reserve_url || spot.google_map_url || spot.instagram_url) && (
-          <div className="space-y-3 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-3 text-xs text-[#374151] sm:p-4">
-
-            {spot.address && (
-              <div className="space-y-1">
-                <div className="text-[11px] font-semibold text-[#6B7280]">住所</div>
-                <div className="text-[12px] text-[#111827]">{spot.address}</div>
+          {(spot.address || spot.reserve_url || spot.google_map_url || spot.instagram_url) && (
+            <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+              {spot.address && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 4 }}>住所</div>
+                  <div style={{ fontSize: 13, color: 'var(--text)' }}>{spot.address}</div>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {spot.reserve_url && (
+                  <a href={spot.reserve_url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, padding: '8px 18px', borderRadius: 20, background: 'var(--gold)', color: '#1a1200', fontWeight: 600, textDecoration: 'none' }}>
+                    予約サイト
+                  </a>
+                )}
+                {spot.google_map_url && (
+                  <a href={spot.google_map_url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, padding: '8px 18px', borderRadius: 20, background: '#2563EB', color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+                    Google Map
+                  </a>
+                )}
+                {spot.instagram_url && (
+                  <a href={spot.instagram_url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, padding: '8px 18px', borderRadius: 20, background: '#E1306C', color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+                    Instagram
+                  </a>
+                )}
               </div>
-            )}
-
-            {/* 外部リンク（スマホでも押しやすいボタン） */}
-            <div className="flex flex-wrap gap-2">
-              {spot.reserve_url && (
-                <a
-                  href={spot.reserve_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center rounded-full bg-[#F97316] px-4 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#F97316A0] hover:bg-[#EA580C]"
-                >
-                  予約サイト
-                </a>
-              )}
-              {spot.google_map_url && (
-                <a
-                  href={spot.google_map_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center rounded-full bg-[#2563EB] px-4 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#2563EBA0] hover:bg-[#1D4ED8]"
-                >
-                  Googleマップ
-                </a>
-              )}
-              {spot.instagram_url && (
-                <a
-                  href={spot.instagram_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center rounded-full bg-[#E1306C] px-4 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#E1306CA0] hover:bg-[#C2185B]"
-                >
-                  Instagram
-                </a>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 説明（読みやすい） */}
-        {spot.description && (
-          <div className="rounded-2xl bg-[#FFF7ED] p-3 text-sm text-[#4B5563] whitespace-pre-line">
-            {spot.description}
-          </div>
-        )}
-
-        {/* Google Map 埋め込み */}
-        {mapSrc && (
-          <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#9CA3AF]">
-              Location Map
+          {allImages.length > 1 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 8 }}>GALLERY</div>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                {allImages.map((url, idx) => (
+                  <button key={url + idx} type="button" onClick={() => openModalAt(idx)}
+                    style={{ flexShrink: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: 'none', cursor: 'pointer', padding: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" style={{ width: 120, height: 80, objectFit: 'cover', display: 'block' }} loading="lazy" />
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#FFF7F0]">
-              <iframe src={mapSrc} className="h-64 w-full" loading="lazy" />
-            </div>
-          </div>
-        )}
-      </section>
+          )}
 
-      {/* 「行った！」カード（スマホで押しやすい） */}
-      <section className="rounded-3xl border border-[#BBF7D0] bg-[#ECFDF3] p-4 shadow-md shadow-[#22C55E40]">
-        <h3 className="text-sm font-semibold text-[#166534]">
+          {mapSrc && (
+            <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', padding: '10px 14px 6px' }}>LOCATION MAP</div>
+              <iframe src={mapSrc} style={{ width: '100%', height: 220, display: 'block', border: 'none' }} loading="lazy" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 行った！ */}
+      <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 16, padding: '16px 20px', marginBottom: 16 }}>
+        <p className="font-mincho" style={{ fontSize: 14, fontWeight: 600, color: '#4ade80', marginBottom: 4 }}>
           このスポットにデートで行った？
-        </h3>
-        <p className="mt-1 text-xs text-[#374151]">
-          行ったら「行った！」を押して思い出に残そう。
         </p>
-
-        <button
-          type="button"
-          onClick={handleVisit}
-          disabled={visitLoading || isVisited}
-          className="mt-3 w-full rounded-full bg-[#22C55E] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-[#22C55E80] transition hover:bg-[#16A34A] disabled:opacity-60 disabled:shadow-none"
-        >
-          {isVisited ? '行った！登録済み' : visitLoading ? '登録中…' : '行った！'}
+        <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
+          行ったら「行った！」を押して思い出に残そう
+        </p>
+        <button type="button" onClick={handleVisit} disabled={visitLoading || isVisited}
+          style={{ width: '100%', padding: 12, borderRadius: 12, border: 'none', cursor: isVisited || visitLoading ? 'not-allowed' : 'pointer', background: isVisited ? 'var(--border)' : '#22C55E', color: isVisited ? 'var(--muted)' : '#fff', fontWeight: 600, fontSize: 14, transition: 'all 0.2s' }}>
+          {isVisited ? '✓ 行った！登録済み' : visitLoading ? '登録中…' : '行った！'}
         </button>
+        {visitError && <p style={{ fontSize: 11, color: '#f87171', marginTop: 8 }}>{visitError}</p>}
+      </div>
 
-        {visitError && <p className="mt-2 text-xs text-[#B91C1C]">{visitError}</p>}
-      </section>
-
-      {/* 管理者リンク */}
       {isAdmin && (
-        <Link
-          href={`/spots/${spot.id}/edit`}
-          className="block text-center text-[12px] text-[#6B7280] underline underline-offset-4 hover:text-[#111827]"
-        >
-          このスポットを編集する（管理者）
-        </Link>
+        <div style={{ textAlign: 'center' }}>
+          <Link href={`/spots/${spot.id}/edit`} style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'underline' }}>
+            このスポットを編集する（管理者）
+          </Link>
+        </div>
       )}
 
-      {/* ---------------------------
-          画像拡大モーダル（スワイプ対応）
-         --------------------------- */}
+      {/* モーダル */}
       {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
-          role="dialog"
-          aria-modal="true"
-          onClick={closeModal}
-        >
-          <div
-            className="relative w-full max-w-4xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 閉じるボタン */}
-            <button
-              type="button"
-              onClick={closeModal}
-              className="absolute right-2 top-2 rounded-full bg-black/70 px-3 py-2 text-xs font-semibold text-white hover:bg-black"
-              aria-label="閉じる"
-            >
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', padding: 16 }}
+          role="dialog" aria-modal="true" onClick={closeModal}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 900 }} onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={closeModal}
+              style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
               ✕
             </button>
-
-            {/* 画像表示エリア（ここでスワイプ検出） */}
-            <div
-              className="overflow-hidden rounded-2xl bg-white"
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            >
+            <div style={{ borderRadius: 16, overflow: 'hidden' }}
+              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={allImages[modalIndex]}
-                alt=""
-                className="max-h-[80vh] w-full select-none object-contain bg-black"
-                draggable={false}
-              />
+              <img src={allImages[modalIndex]} alt="" style={{ maxHeight: '80vh', width: '100%', objectFit: 'contain', background: '#000', display: 'block', userSelect: 'none' }} draggable={false} />
             </div>
-
-            {/* 前後ボタン（指でも押せる） */}
-            <div className="mt-2 flex items-center justify-between text-white">
-              <button
-                type="button"
-                disabled={modalIndex <= 0}
-                onClick={() => setModalIndex((i) => Math.max(0, i - 1))}
-                className="rounded-full bg-black/60 px-4 py-2 text-xs font-semibold disabled:opacity-40"
-              >
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#fff' }}>
+              <button type="button" disabled={modalIndex <= 0} onClick={() => setModalIndex(i => Math.max(0, i - 1))}
+                style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 12, cursor: modalIndex <= 0 ? 'not-allowed' : 'pointer', opacity: modalIndex <= 0 ? 0.4 : 1 }}>
                 ← 前へ
               </button>
-
-              <div className="text-[11px] opacity-80">
-                {modalIndex + 1} / {allImages.length}
-              </div>
-
-              <button
-                type="button"
-                disabled={modalIndex >= allImages.length - 1}
-                onClick={() =>
-                  setModalIndex((i) => Math.min(allImages.length - 1, i + 1))
-                }
-                className="rounded-full bg-black/60 px-4 py-2 text-xs font-semibold disabled:opacity-40"
-              >
+              <span style={{ fontSize: 11, opacity: 0.8 }}>{modalIndex + 1} / {allImages.length}</span>
+              <button type="button" disabled={modalIndex >= allImages.length - 1} onClick={() => setModalIndex(i => Math.min(allImages.length - 1, i + 1))}
+                style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 12, cursor: modalIndex >= allImages.length - 1 ? 'not-allowed' : 'pointer', opacity: modalIndex >= allImages.length - 1 ? 0.4 : 1 }}>
                 次へ →
               </button>
             </div>
