@@ -16,7 +16,7 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         <NavBar />
-        <main>{children}</main>
+        <main style={{ paddingBottom: 0 }}>{children}</main>
         <footer className="text-center py-8 text-xs tracking-widest"
           style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}>
           <span className="font-mincho">© 2026 今日のデートスポット</span>
