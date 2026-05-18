@@ -1,99 +1,199 @@
 "use client";
-// app/login/page.tsx
-// ★ Supabase Google OAuth ロジックは既存コードから変更しない
+// app/mypage/page.tsx
+// ★ Supabase auth / checkin fetch ロジックは既存コードから変更しない
 
-import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 
-export default function LoginPage() {
-  const router  = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
+type CheckIn = {
+  id: string;
+  spot_id: string;
+  user_id: string;
+  visited_at?: string;
+  created_at?: string;
+  spots?: {
+    id: string;
+    name: string;
+    area: string;
+    genre: string;
+    image_url?: string;
+  };
+};
 
-  // ── 既存のセッションチェックをそのまま維持 ──
+// テーブルによって日時フィールド名が異なるため両対応
+function getDate(c: CheckIn) {
+  return c.visited_at ?? c.created_at ?? "";
+}
+
+export default function MyPage() {
+  const [checkins, setCheckins] = useState<CheckIn[]>([]);
+  const [user, setUser]         = useState<{ email?: string } | null>(null);
+  const [loading, setLoading]   = useState(true);
+
+  // ── Supabase fetch ──
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) router.replace("/mypage");
-      else setChecking(false);
-    });
-  }, [router]);
+    const load = async () => {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const currentUser = userData?.user ?? null;
+        setUser(currentUser);
 
-  async function handleGoogleLogin() {
-    setLoading(true);
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${location.origin}/mypage` },
-    });
-  }
+        if (!currentUser) {
+          setLoading(false);
+          return;
+        }
 
-  if (checking) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 rounded-full border-2 animate-spin mx-auto"
-        style={{ borderColor: "var(--gold)", borderTopColor: "transparent" }} />
+        // visits テーブルから取得（既存コードに合わせる）
+        const { data, error } = await supabase
+          .from("visits")
+          .select("*, spots(*)")
+          .eq("user_id", currentUser.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("visits fetch error:", error);
+          // テーブル名が違う場合は checkins でも試みる
+          const { data: data2 } = await supabase
+            .from("checkins")
+            .select("*, spots(*)")
+            .order("visited_at", { ascending: false });
+          setCheckins((data2 as CheckIn[]) ?? []);
+        } else {
+          setCheckins((data as CheckIn[]) ?? []);
+        }
+      } catch (e) {
+        console.error("mypage load error:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading) return <LoadingScreen />;
+
+  if (!user) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+      <p className="font-mincho text-xl" style={{ color: "var(--cream)" }}>
+        ログインが必要です
+      </p>
+      <Link
+        href="/login"
+        className="px-8 py-3 rounded-xl text-sm font-semibold tracking-widest"
+        style={{ background: "var(--gold)", color: "#1a1200" }}
+      >
+        ログインへ
+      </Link>
     </div>
   );
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh] px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo area */}
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <span style={{ width: 40, height: 1, background: "var(--gold)", display: "inline-block", opacity: 0.5 }} />
-            <span className="font-mincho text-xs tracking-widest" style={{ color: "var(--gold)", opacity: 0.8 }}>
-              SIGN IN
-            </span>
-            <span style={{ width: 40, height: 1, background: "var(--gold)", display: "inline-block", opacity: 0.5 }} />
-          </div>
-          <h1 className="font-mincho text-2xl font-semibold" style={{ color: "var(--cream)" }}>
-            ログイン
-          </h1>
-          <p className="text-xs mt-2 tracking-wide" style={{ color: "var(--muted)" }}>
-            Google アカウントでかんたんにはじめられます
-          </p>
-        </div>
-
-        {/* Card */}
-        <div className="rounded-2xl p-8"
-          style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl text-sm font-semibold tracking-wider transition-all duration-200"
-            style={{
-              background: loading ? "var(--border)" : "var(--gold)",
-              color: loading ? "var(--muted)" : "#1a1200",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? (
-              <span>ログイン中…</span>
-            ) : (
-              <>
-                <GoogleIcon />
-                Google でログイン
-              </>
-            )}
-          </button>
-
-          <p className="text-center text-xs mt-6 leading-relaxed" style={{ color: "var(--muted)" }}>
-            ログインすることで、「行った！」記録や<br />デートプランの保存が使えるようになります
-          </p>
-        </div>
+    <div className="max-w-3xl mx-auto px-4 py-10">
+      {/* Header */}
+      <div className="text-center mb-10">
+        <p className="font-mincho text-2xl font-semibold" style={{ color: "var(--cream)" }}>
+          マイページ
+        </p>
+        <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>{user.email}</p>
       </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 mb-10">
+        <StatCard label="行ったスポット" value={checkins.length} unit="件" />
+        <StatCard
+          label="最近の記録"
+          value={checkins[0]
+            ? new Date(getDate(checkins[0])).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+            : "—"}
+          unit=""
+        />
+      </div>
+
+      {/* Checkin list */}
+      <p className="font-mincho text-base mb-4" style={{ color: "var(--cream)" }}>
+        訪問履歴
+      </p>
+
+      {checkins.length === 0 ? (
+        <div className="text-center py-16" style={{ color: "var(--muted)" }}>
+          <p className="font-mincho">まだ「行った！」の記録がありません</p>
+          <Link href="/spots" className="mt-4 inline-block text-xs" style={{ color: "var(--gold)" }}>
+            スポット一覧へ →
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {checkins.map((c, i) => (
+            <CheckInRow key={c.id} checkin={c} index={i} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function GoogleIcon() {
+function StatCard({ label, value, unit }: { label: string; value: number | string; unit: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#1a1200" fillOpacity="0.8"/>
-      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#1a1200" fillOpacity="0.7"/>
-      <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#1a1200" fillOpacity="0.6"/>
-      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#1a1200" fillOpacity="0.5"/>
-    </svg>
+    <div className="rounded-xl p-5 text-center"
+      style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+      <p className="text-xs mb-2 tracking-wider" style={{ color: "var(--muted)" }}>{label}</p>
+      <p className="font-mincho text-3xl font-bold" style={{ color: "var(--gold)" }}>
+        {value}<span className="text-base font-normal ml-1" style={{ color: "var(--muted)" }}>{unit}</span>
+      </p>
+    </div>
+  );
+}
+
+function CheckInRow({ checkin, index }: { checkin: CheckIn; index: number }) {
+  const spot = checkin.spots;
+  return (
+    <Link
+      href={spot ? `/spots/${spot.id}` : "#"}
+      className="flex gap-4 items-center rounded-xl p-4 transition-all duration-200 animate-fadeUp"
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        animationDelay: `${Math.min(index * 0.04, 0.4)}s`,
+      }}
+    >
+      {spot?.image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={spot.image_url} alt={spot.name} className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+      ) : (
+        <div className="w-14 h-14 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
+          style={{ background: "var(--surface)" }}>💑</div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-mincho text-sm font-semibold" style={{ color: "var(--cream)" }}>
+          {spot?.name ?? "不明なスポット"}
+        </p>
+        <div className="flex gap-2 mt-1">
+          {spot?.area && (
+            <span className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(201,169,110,0.1)", border: "1px solid rgba(201,169,110,0.2)", color: "var(--gold-light)" }}>
+              {spot.area}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          {getDate(checkin) ? new Date(getDate(checkin)).toLocaleDateString("ja-JP") : ""}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent mx-auto mb-4 animate-spin"
+          style={{ borderColor: "var(--gold)", borderTopColor: "transparent" }} />
+        <p className="font-mincho text-sm" style={{ color: "var(--muted)" }}>読み込み中…</p>
+      </div>
+    </div>
   );
 }
