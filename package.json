@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsx scripts/generateDetailTags.ts && next build",
+    "build": "tsx app/scripts/generateDetailTags.tsx && next build",
     "start": "next start",
     "lint": "eslint"
   },
