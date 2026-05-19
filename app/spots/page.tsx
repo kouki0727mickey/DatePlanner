@@ -2,6 +2,10 @@ import { Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import SpotsClient from "./SpotsClient";
 
+// 常に最新データを取得するため動的レンダリングに設定
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export type Spot = {
   id: string;
   name: string;
